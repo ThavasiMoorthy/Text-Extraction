@@ -34,7 +34,8 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('http://localhost:8000/upload', formData, {
+      // Use the Render backend URL
+      const response = await axios.post('https://text-extraction-alw7.onrender.com/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
