@@ -25,10 +25,44 @@ function Scene() {
 function App() {
   const [extractedText, setExtractedText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverStatus, setServerStatus] = useState('checking'); // checking, sleeping, ready, error
+
+  // Ping server on mount to wake it up
+  React.useEffect(() => {
+    const checkServer = async () => {
+      try {
+        console.log("Pinging server...");
+        await axios.get('https://text-extraction-alw7.onrender.com/');
+        console.log("Server is ready!");
+        setServerStatus('ready');
+      } catch (error) {
+        console.log("Server might be sleeping or down...");
+        setServerStatus('sleeping');
+        // Retry once after 5 seconds if failed
+        setTimeout(async () => {
+          try {
+            await axios.get('https://text-extraction-alw7.onrender.com/');
+            setServerStatus('ready');
+          } catch (e) {
+            setServerStatus('error');
+          }
+        }, 5000);
+      }
+    };
+    checkServer();
+  }, []);
 
   const handleFileUpload = async (file) => {
     setLoading(true);
     setExtractedText('');
+
+    if (serverStatus !== 'ready') {
+      const confirm = window.confirm("The server seems to be sleeping (free tier). It might take ~1 minute to wake up. Continue?");
+      if (!confirm) {
+        setLoading(false);
+        return;
+      }
+    }
 
     const formData = new FormData();
     formData.append('file', file);
@@ -39,11 +73,16 @@ function App() {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 60000 // 60 seconds timeout
       });
       setExtractedText(response.data.text);
     } catch (error) {
       console.error('Error uploading file:', error);
-      setExtractedText('Error extracting text. Please try again.');
+      if (error.code === 'ECONNABORTED') {
+        setExtractedText('Error: Request timed out. The file might be too large or the server is still waking up. Please try again.');
+      } else {
+        setExtractedText('Error extracting text. Please ensure the server is awake and try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -72,9 +111,17 @@ function App() {
         pointerEvents: 'none' // Allow clicks to pass through to canvas where not on UI
       }}>
         <div style={{ pointerEvents: 'auto', width: '80%', maxWidth: '800px', textAlign: 'center' }}>
-          <h1 style={{ color: 'white', marginBottom: '20px', textShadow: '0 0 10px cyan' }}>
+          <h1 style={{ color: 'white', marginBottom: '10px', textShadow: '0 0 10px cyan' }}>
             Tamil Text Extractor 3D
           </h1>
+          <div style={{ marginBottom: '20px', color: '#ccc', fontSize: '14px' }}>
+            Server Status: {
+              serverStatus === 'checking' ? <span style={{ color: 'orange' }}>Checking...</span> :
+                serverStatus === 'sleeping' ? <span style={{ color: 'yellow' }}>Sleeping (Waking up...)</span> :
+                  serverStatus === 'ready' ? <span style={{ color: '#0f0' }}>● Online</span> :
+                    <span style={{ color: 'red' }}>Offline</span>
+            }
+          </div>
           <FileUpload onFileUpload={handleFileUpload} />
           <ResultDisplay text={extractedText} loading={loading} />
         </div>

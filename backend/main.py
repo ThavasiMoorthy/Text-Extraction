@@ -27,6 +27,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def home():
+    return {"status": "online", "message": "Tamil Text Extractor Backend is Running"}
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
